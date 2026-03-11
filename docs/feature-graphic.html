@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 1024px;
+      height: 500px;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    .container {
+      width: 1024px;
+      height: 500px;
+      background: linear-gradient(135deg, #007BA7 0%, #005F82 50%, #003F5E 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+    /* Subtle grid pattern */
+    .container::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+    .left {
+      flex: 1;
+      padding: 60px;
+      z-index: 1;
+    }
+    .app-name {
+      font-size: 56px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -1px;
+      margin-bottom: 12px;
+    }
+    .tagline {
+      font-size: 24px;
+      font-weight: 400;
+      color: rgba(255,255,255,0.85);
+      line-height: 1.4;
+      max-width: 380px;
+    }
+    .features {
+      margin-top: 28px;
+      display: flex;
+      gap: 16px;
+    }
+    .feature-tag {
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.25);
+      color: #fff;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .right {
+      flex: 0 0 400px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+    }
+    /* Mock phone frame */
+    .phone {
+      width: 220px;
+      height: 400px;
+      background: #0F1117;
+      border-radius: 28px;
+      border: 3px solid rgba(255,255,255,0.2);
+      padding: 16px 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      overflow: hidden;
+    }
+    .phone-screen {
+      background: #1A1D27;
+      border-radius: 16px;
+      height: 100%;
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .phone-label {
+      font-size: 8px;
+      color: rgba(255,255,255,0.5);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .phone-weight {
+      font-size: 32px;
+      font-weight: 700;
+      color: #fff;
+      margin: -4px 0;
+    }
+    .phone-conf {
+      font-size: 10px;
+      color: rgba(255,255,255,0.5);
+    }
+    .phone-card {
+      background: rgba(255,255,255,0.06);
+      border-radius: 10px;
+      padding: 10px;
+    }
+    .phone-bmi-label {
+      font-size: 8px;
+      color: rgba(255,255,255,0.5);
+      text-transform: uppercase;
+    }
+    .phone-bmi-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .phone-bmi-val {
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .phone-bmi-tag {
+      background: rgba(72,187,120,0.2);
+      color: #48BB78;
+      font-size: 9px;
+      padding: 2px 8px;
+      border-radius: 8px;
+      font-weight: 600;
+    }
+    .phone-bar {
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255,255,255,0.1);
+      margin-top: 8px;
+      overflow: hidden;
+    }
+    .phone-bar-fill {
+      height: 100%;
+      width: 45%;
+      background: #48BB78;
+      border-radius: 2px;
+    }
+    /* Mini chart */
+    .mini-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      height: 50px;
+      padding-top: 8px;
+    }
+    .chart-bar {
+      flex: 1;
+      background: rgba(0,123,167,0.6);
+      border-radius: 2px;
+      min-height: 4px;
+    }
+    .chart-bar:last-child { background: #007BA7; }
+    /* Decorative circles */
+    .circle-1 {
+      position: absolute;
+      width: 300px; height: 300px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.05);
+      top: -80px; right: -60px;
+    }
+    .circle-2 {
+      position: absolute;
+      width: 200px; height: 200px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.04);
+      bottom: -40px; left: 200px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="circle-1"></div>
+    <div class="circle-2"></div>
+    <div class="left">
+      <div class="app-name">Scaley</div>
+      <div class="tagline">Your true weight, revealed. Smart tracking that filters daily noise.</div>
+      <div class="features">
+        <span class="feature-tag">Bayesian AI</span>
+        <span class="feature-tag">BMI Tracker</span>
+        <span class="feature-tag">Smart Tips</span>
+      </div>
+    </div>
+    <div class="right">
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="phone-label">Estimated True Weight</div>
+          <div class="phone-weight">58.3 kg</div>
+          <div class="phone-conf">&pm; 0.15 kg confidence</div>
+          <div class="phone-card">
+            <div class="phone-bmi-label">BMI</div>
+            <div class="phone-bmi-row">
+              <span class="phone-bmi-val">21.4</span>
+              <span class="phone-bmi-tag">Normal</span>
+            </div>
+            <div class="phone-bar"><div class="phone-bar-fill"></div></div>
+          </div>
+          <div class="phone-card">
+            <div class="phone-bmi-label">Weight History</div>
+            <div class="mini-chart">
+              <div class="chart-bar" style="height:60%"></div>
+              <div class="chart-bar" style="height:55%"></div>
+              <div class="chart-bar" style="height:50%"></div>
+              <div class="chart-bar" style="height:42%"></div>
+              <div class="chart-bar" style="height:38%"></div>
+              <div class="chart-bar" style="height:32%"></div>
+              <div class="chart-bar" style="height:25%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

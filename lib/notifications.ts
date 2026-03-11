@@ -3,14 +3,27 @@
 
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { getUser, hasLoggedToday } from '@/lib/database';
 
 // Configure how notifications appear when app is in foreground
+// Suppresses reminders if user already logged weight today
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
+  handleNotification: async () => {
+    try {
+      const user = await getUser();
+      if (user) {
+        const logged = await hasLoggedToday(user.id);
+        if (logged) {
+          return { shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false };
+        }
+      }
+    } catch {}
+    return {
+      shouldShowAlert: true,
+      shouldPlaySound: false,
+      shouldSetBadge: false,
+    };
+  },
 });
 
 // Friendly reminder messages — rotated randomly

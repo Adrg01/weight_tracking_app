@@ -15,6 +15,7 @@ import { router } from 'expo-router';
 import { useApp } from '@/contexts/AppContext';
 import Colors from '@/constants/Colors';
 import { ftInToCm } from '@/lib/units';
+import AnalogTimePicker from '@/components/AnalogTimePicker';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -187,6 +188,8 @@ export default function OnboardingScreen() {
   const [goalWeight, setGoalWeight] = useState('');
   const [wakeTime, setWakeTime] = useState('07:00');
   const [sleepTime, setSleepTime] = useState('23:00');
+  const [showWakePicker, setShowWakePicker] = useState(false);
+  const [showSleepPicker, setShowSleepPicker] = useState(false);
 
   const handleFinish = async () => {
     const heightValue =
@@ -467,22 +470,46 @@ export default function OnboardingScreen() {
             </Text>
 
             <Text style={[styles.label, { color: colors.text }]}>Wake up time</Text>
-            <TextInput
-              style={[styles.input, { color: colors.text, borderColor: colors.surfaceBorder, backgroundColor: colors.surface }]}
-              placeholder="07:00"
-              placeholderTextColor={colors.textSecondary}
-              value={wakeTime}
-              onChangeText={setWakeTime}
-            />
+            <TouchableOpacity
+              style={[styles.timeDisplay, { borderColor: colors.surfaceBorder, backgroundColor: colors.surface }]}
+              onPress={() => { setShowWakePicker(!showWakePicker); setShowSleepPicker(false); }}>
+              <Text style={[styles.timeDisplayText, { color: colors.text }]}>{wakeTime}</Text>
+            </TouchableOpacity>
+            {showWakePicker && (
+              <View style={styles.pickerInline}>
+                <AnalogTimePicker
+                  initialHours={parseInt(wakeTime.split(':')[0]) || 7}
+                  initialMinutes={parseInt(wakeTime.split(':')[1]) || 0}
+                  colors={colors}
+                  onCancel={() => setShowWakePicker(false)}
+                  onConfirm={(h, m) => {
+                    setWakeTime(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+                    setShowWakePicker(false);
+                  }}
+                />
+              </View>
+            )}
 
             <Text style={[styles.label, { color: colors.text }]}>Sleep time</Text>
-            <TextInput
-              style={[styles.input, { color: colors.text, borderColor: colors.surfaceBorder, backgroundColor: colors.surface }]}
-              placeholder="23:00"
-              placeholderTextColor={colors.textSecondary}
-              value={sleepTime}
-              onChangeText={setSleepTime}
-            />
+            <TouchableOpacity
+              style={[styles.timeDisplay, { borderColor: colors.surfaceBorder, backgroundColor: colors.surface }]}
+              onPress={() => { setShowSleepPicker(!showSleepPicker); setShowWakePicker(false); }}>
+              <Text style={[styles.timeDisplayText, { color: colors.text }]}>{sleepTime}</Text>
+            </TouchableOpacity>
+            {showSleepPicker && (
+              <View style={styles.pickerInline}>
+                <AnalogTimePicker
+                  initialHours={parseInt(sleepTime.split(':')[0]) || 23}
+                  initialMinutes={parseInt(sleepTime.split(':')[1]) || 0}
+                  colors={colors}
+                  onCancel={() => setShowSleepPicker(false)}
+                  onConfirm={(h, m) => {
+                    setSleepTime(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+                    setShowSleepPicker(false);
+                  }}
+                />
+              </View>
+            )}
 
             <TouchableOpacity
               style={[styles.primaryButton, { backgroundColor: colors.tint }]}
@@ -604,6 +631,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   optionText: { fontSize: 16, fontWeight: '500' },
+  timeDisplay: {
+    width: '100%',
+    height: 52,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  timeDisplayText: { fontSize: 24, fontWeight: '600' },
+  pickerInline: { marginBottom: 12, alignItems: 'center' },
   unitToggle: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   unitButton: {
     paddingHorizontal: 24,

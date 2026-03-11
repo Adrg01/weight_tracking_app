@@ -17,6 +17,7 @@ import * as Haptics from 'expo-haptics';
 import { useApp } from '@/contexts/AppContext';
 import Colors from '@/constants/Colors';
 import { toKg, fromKg, formatWeight } from '@/lib/units';
+import { showDailyInterstitial } from '@/lib/ads';
 
 interface LogWeightModalProps {
   visible: boolean;
@@ -52,6 +53,9 @@ export default function LogWeightModal({ visible, onClose }: LogWeightModalProps
       setJustLogged(true);
       setWeightInput('');
       setNote('');
+
+      // Show interstitial ad (max 1/day, fire-and-forget)
+      showDailyInterstitial().catch(() => {});
 
       setTimeout(() => {
         setJustLogged(false);

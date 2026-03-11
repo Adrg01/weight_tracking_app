@@ -215,6 +215,23 @@ export async function getAllMeasurementsChronological(userId: string): Promise<M
   );
 }
 
+export async function hasLoggedToday(userId: string): Promise<boolean> {
+  const database = await getDatabase();
+  const result = await database.getFirstAsync<{ count: number }>(
+    `SELECT COUNT(*) as count FROM measurements WHERE user_id = ? AND deleted_at IS NULL AND date(measured_at) = date('now')`,
+    [userId]
+  );
+  return (result?.count ?? 0) > 0;
+}
+
+export async function getAllMeasurementsForExport(userId: string): Promise<MeasurementRow[]> {
+  const database = await getDatabase();
+  return await database.getAllAsync<MeasurementRow>(
+    'SELECT * FROM measurements WHERE user_id = ? AND deleted_at IS NULL ORDER BY measured_at ASC',
+    [userId]
+  );
+}
+
 export async function deleteMeasurement(id: string): Promise<void> {
   const database = await getDatabase();
   await database.runAsync(

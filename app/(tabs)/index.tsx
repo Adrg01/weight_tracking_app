@@ -15,6 +15,7 @@ import { getBestMeasurementTime, createInitialPrior, updatePosterior } from '@/l
 import WeightChart from '@/components/WeightChart';
 import LogWeightModal from '@/components/LogWeightModal';
 import SwipeableTab from '@/components/SwipeableTab';
+import { BannerAd, BannerAdSize, BANNER_AD_UNIT_ID } from '@/lib/ads';
 
 export default function DashboardScreen() {
   const {
@@ -215,9 +216,18 @@ export default function DashboardScreen() {
           );
         })()}
 
-        {/* Bottom spacer for FAB */}
-        <View style={{ height: 80 }} />
+        {/* Bottom spacer for banner + FAB */}
+        <View style={{ height: 140 }} />
       </ScrollView>
+
+      {/* Banner ad */}
+      <View style={styles.bannerContainer}>
+        <BannerAd
+          unitId={BANNER_AD_UNIT_ID}
+          size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+          requestOptions={{ requestNonPersonalizedAdsOnly: true }}
+        />
+      </View>
 
       {/* Floating Action Button */}
       <TouchableOpacity
@@ -282,9 +292,17 @@ const styles = StyleSheet.create({
   goalSubtext: { fontSize: 13, marginBottom: 12 },
   progressBar: { height: 8, borderRadius: 4, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 4 },
+  bannerContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
   fab: {
     position: 'absolute',
-    bottom: 24,
+    bottom: 80,
     right: 24,
     width: 60,
     height: 60,

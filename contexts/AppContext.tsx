@@ -32,7 +32,8 @@ import {
 import { getNextTip, Tip, GoalDirection } from '@/lib/tips';
 import { WeightUnit, HeightUnit } from '@/lib/units';
 import { generateDemoData } from '@/lib/demoData';
-import { scheduleWeighInReminders } from '@/lib/notifications';
+import { scheduleWeighInReminders, cancelAllReminders } from '@/lib/notifications';
+import { initializeAds } from '@/lib/ads';
 
 // Demo mode: automatically true in development, always false in production builds
 const DEMO_MODE = __DEV__;
@@ -148,8 +149,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // Load tip
           await loadTip(existingUser.id);
 
-          // Schedule notifications (re-schedule on each launch to keep them fresh)
+          // Initialize ads and schedule notifications
           if (existingUser.onboarding_complete) {
+            initializeAds().catch(() => {});
             scheduleWeighInReminders(
               existingUser.wake_time ?? '07:00',
               existingUser.sleep_time ?? '23:00'
@@ -301,6 +303,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Refresh measurements list
     const updated = await getMeasurements(user.id, 100);
     setMeasurements(updated);
+
+    // Cancel today's remaining reminders (they'll fire again tomorrow)
+    cancelAllReminders().then(() => {
+      scheduleWeighInReminders(user.wake_time ?? '07:00', user.sleep_time ?? '23:00');
+    }).catch(() => {});
   }, [user, bayesianState]);
 
   const removeWeight = useCallback(async (id: string) => {

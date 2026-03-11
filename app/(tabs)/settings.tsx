@@ -16,6 +16,8 @@ import Colors from '@/constants/Colors';
 import { formatHeight, formatWeight, cmToFtIn, ftInToCm, fromKg, WeightUnit, HeightUnit } from '@/lib/units';
 import SwipeableTab from '@/components/SwipeableTab';
 import AnalogTimePicker from '@/components/AnalogTimePicker';
+import { exportDataAsCSV } from '@/lib/export';
+import * as WebBrowser from 'expo-web-browser';
 
 export default function SettingsScreen() {
   const {
@@ -465,6 +467,18 @@ export default function SettingsScreen() {
       <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
         <TouchableOpacity
           style={[styles.row, { borderBottomColor: colors.surfaceBorder }]}
+          onPress={async () => {
+            if (!user || measurements.length === 0) {
+              Alert.alert('No Data', 'There are no measurements to export.');
+              return;
+            }
+            await exportDataAsCSV(user.id, weightUnit);
+          }}>
+          <Text style={[styles.rowLabel, { color: colors.text }]}>Export Data</Text>
+          <Text style={[styles.rowValue, { color: colors.textSecondary }]}>CSV</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.row, { borderBottomColor: colors.surfaceBorder }]}
           onPress={() => {
             if (measurements.length === 0) {
               Alert.alert('No Data', 'There are no measurements to clear.');
@@ -494,6 +508,11 @@ export default function SettingsScreen() {
       <View style={styles.appInfo}>
         <Text style={[styles.appName, { color: colors.tint }]}>Scaley</Text>
         <Text style={[styles.appVersion, { color: colors.textSecondary }]}>Version 1.0.0</Text>
+        <TouchableOpacity
+          style={{ marginTop: 12 }}
+          onPress={() => WebBrowser.openBrowserAsync('https://adrg01.github.io/weight_tracking_app/privacy-policy.html')}>
+          <Text style={[styles.rowValue, { color: colors.tint }]}>Privacy Policy</Text>
+        </TouchableOpacity>
       </View>
     </ScrollView>
 
