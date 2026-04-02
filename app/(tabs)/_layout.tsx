@@ -1,17 +1,10 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { View, Text, StyleSheet } from 'react-native';
+import { Platform } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 
 import Colors from '@/constants/Colors';
 import { useApp } from '@/contexts/AppContext';
-
-function TabIcon({ label, color, size = 20 }: { label: string; color: string; size?: number }) {
-  return (
-    <View style={styles.iconContainer}>
-      <Text style={{ fontSize: size, color, lineHeight: size + 4 }}>{label}</Text>
-    </View>
-  );
-}
 
 export default function TabLayout() {
   const { resolvedTheme } = useApp();
@@ -26,9 +19,9 @@ export default function TabLayout() {
           backgroundColor: colors.surface,
           borderTopColor: colors.surfaceBorder,
           borderTopWidth: 0.5,
-          height: 56,
-          paddingBottom: 6,
-          paddingTop: 4,
+          height: Platform.OS === 'android' ? 64 : 80,
+          paddingBottom: Platform.OS === 'android' ? 10 : 24,
+          paddingTop: 6,
           elevation: 0,
           shadowOpacity: 0,
         },
@@ -49,7 +42,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Dashboard',
-          tabBarIcon: ({ color }) => <TabIcon label={'\u2302'} color={color} size={22} />,
+          tabBarIcon: ({ color, size }) => <Feather name="home" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -60,32 +53,23 @@ export default function TabLayout() {
         name="history"
         options={{
           title: 'History',
-          tabBarIcon: ({ color }) => <TabIcon label={'\u2197'} color={color} size={20} />,
+          tabBarIcon: ({ color, size }) => <Feather name="bar-chart-2" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="insights"
         options={{
           title: 'Insights',
-          tabBarIcon: ({ color }) => <TabIcon label={'\u2606'} color={color} size={20} />,
+          tabBarIcon: ({ color, size }) => <Feather name="zap" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: ({ color }) => <TabIcon label={'\u2699'} color={color} size={22} />,
+          tabBarIcon: ({ color, size }) => <Feather name="settings" size={22} color={color} />,
         }}
       />
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  iconContainer: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

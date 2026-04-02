@@ -34,6 +34,7 @@ import { WeightUnit, HeightUnit } from '@/lib/units';
 import { generateDemoData } from '@/lib/demoData';
 import { scheduleWeighInReminders, cancelAllReminders } from '@/lib/notifications';
 import { initializeAds } from '@/lib/ads';
+import { maybeRequestReview } from '@/lib/reviewPrompt';
 
 // Demo mode: automatically true in development, always false in production builds
 const DEMO_MODE = __DEV__;
@@ -62,10 +63,12 @@ interface AppContextType {
 
   // Measurements
   measurements: MeasurementRow[];
-  logWeight: (weightKg: number, note?: string) => Promise<void>;
+  logWeight: (weightKg: number, note?: string, measuredAt?: string) => Promise<void>;
+  editWeight: (oldId: string, weightKg: number, measuredAt: string, note?: string) => Promise<void>;
   removeWeight: (id: string) => Promise<void>;
   clearHistory: () => Promise<void>;
   refreshMeasurements: () => Promise<void>;
+  importMeasurements: (data: Array<{ weight_kg: number; measured_at: string; note?: string }>) => Promise<void>;
 
   // Bayesian
   bayesianResult: PosteriorResult | null;
@@ -263,11 +266,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user]);
 
-  const logWeight = useCallback(async (weightKg: number, note?: string) => {
+  const logWeight = useCallback(async (weightKg: number, note?: string, measuredAt?: string) => {
     if (!user) return;
 
     const id = generateUUID();
-    const now = new Date().toISOString();
+    const now = measuredAt ?? new Date().toISOString();
 
     await addMeasurement({
       id,
@@ -308,11 +311,55 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     cancelAllReminders().then(() => {
       scheduleWeighInReminders(user.wake_time ?? '07:00', user.sleep_time ?? '23:00');
     }).catch(() => {});
+
+    // Maybe prompt for review (non-blocking, silent)
+    maybeRequestReview(updated.length).catch(() => {});
   }, [user, bayesianState]);
 
   const removeWeight = useCallback(async (id: string) => {
     if (!user) return;
     await deleteMeasurement(id);
+    const updated = await getMeasurements(user.id, 100);
+    setMeasurements(updated);
+    await rebuildBayesian(user.id);
+  }, [user]);
+
+  const editWeight = useCallback(async (oldId: string, weightKg: number, measuredAt: string, note?: string) => {
+    if (!user) return;
+
+    // Soft-delete the old entry
+    await deleteMeasurement(oldId);
+
+    // Create a new replacement entry
+    const newId = generateUUID();
+    await addMeasurement({
+      id: newId,
+      user_id: user.id,
+      weight_kg: weightKg,
+      measured_at: measuredAt,
+      note: note ?? undefined,
+    });
+
+    // Refresh measurements and rebuild Bayesian model
+    const updated = await getMeasurements(user.id, 100);
+    setMeasurements(updated);
+    await rebuildBayesian(user.id);
+  }, [user]);
+
+  const importMeasurements = useCallback(async (data: Array<{ weight_kg: number; measured_at: string; note?: string }>) => {
+    if (!user) return;
+
+    for (const m of data) {
+      await addMeasurement({
+        id: generateUUID(),
+        user_id: user.id,
+        weight_kg: m.weight_kg,
+        measured_at: m.measured_at,
+        note: m.note,
+      });
+    }
+
+    // Refresh and rebuild
     const updated = await getMeasurements(user.id, 100);
     setMeasurements(updated);
     await rebuildBayesian(user.id);
@@ -355,9 +402,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setHeightUnit,
         measurements,
         logWeight,
+        editWeight,
         removeWeight,
         clearHistory,
         refreshMeasurements,
+        importMeasurements,
         bayesianResult,
         bayesianState,
         currentTip,

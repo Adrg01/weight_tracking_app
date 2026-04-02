@@ -1,6 +1,6 @@
-// Transparent overlay modal for logging weight
+// Transparent overlay modal for logging or editing weight
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,30 +12,81 @@ import {
   Platform,
   Alert,
   Pressable,
+  ScrollView,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useApp } from '@/contexts/AppContext';
 import Colors from '@/constants/Colors';
 import { toKg, fromKg, formatWeight } from '@/lib/units';
-import { showDailyInterstitial } from '@/lib/ads';
+import { showPeriodicInterstitial } from '@/lib/ads';
+import AnalogTimePicker from '@/components/AnalogTimePicker';
+import CalendarPicker from '@/components/CalendarPicker';
+
+export interface EditData {
+  id: string;
+  weightKg: number;
+  measuredAt: string; // ISO string
+  note: string | null;
+}
 
 interface LogWeightModalProps {
   visible: boolean;
   onClose: () => void;
+  editData?: EditData | null;
 }
 
-export default function LogWeightModal({ visible, onClose }: LogWeightModalProps) {
-  const { resolvedTheme, weightUnit, logWeight, bayesianResult, measurements } = useApp();
+export default function LogWeightModal({ visible, onClose, editData }: LogWeightModalProps) {
+  const { resolvedTheme, weightUnit, logWeight, editWeight, bayesianResult, measurements } = useApp();
   const colors = Colors[resolvedTheme];
+
+  const isEditMode = !!editData;
 
   const [weightInput, setWeightInput] = useState('');
   const [note, setNote] = useState('');
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedHours, setSelectedHours] = useState(new Date().getHours());
+  const [selectedMinutes, setSelectedMinutes] = useState(new Date().getMinutes());
   const [isLogging, setIsLogging] = useState(false);
   const [justLogged, setJustLogged] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const weightInputRef = useRef<TextInput>(null);
+
+  // Initialize fields when modal opens or editData changes
+  useEffect(() => {
+    if (visible) {
+      if (editData) {
+        const editDate = new Date(editData.measuredAt);
+        setWeightInput(fromKg(editData.weightKg, weightUnit).toFixed(1));
+        setNote(editData.note ?? '');
+        setSelectedDate(editDate);
+        setSelectedHours(editDate.getHours());
+        setSelectedMinutes(editDate.getMinutes());
+      } else {
+        const now = new Date();
+        setWeightInput('');
+        setNote('');
+        setSelectedDate(now);
+        setSelectedHours(now.getHours());
+        setSelectedMinutes(now.getMinutes());
+      }
+      setJustLogged(false);
+      setShowCalendar(false);
+      setShowTimePicker(false);
+      // Focus weight input after modal animation completes
+      setTimeout(() => weightInputRef.current?.focus(), 400);
+    }
+  }, [visible, editData]);
 
   const lastWeight = measurements.length > 0
     ? fromKg(measurements[0].weight_kg, weightUnit)
     : null;
+
+  const buildTimestamp = (): string => {
+    const d = new Date(selectedDate);
+    d.setHours(selectedHours, selectedMinutes, 0, 0);
+    return d.toISOString();
+  };
 
   const handleLog = async () => {
     const value = parseFloat(weightInput);
@@ -47,22 +98,29 @@ export default function LogWeightModal({ visible, onClose }: LogWeightModalProps
     setIsLogging(true);
     try {
       const weightKg = toKg(value, weightUnit);
-      await logWeight(weightKg, note || undefined);
+      const timestamp = buildTimestamp();
+
+      if (isEditMode && editData) {
+        await editWeight(editData.id, weightKg, timestamp, note || undefined);
+      } else {
+        await logWeight(weightKg, note || undefined, timestamp);
+      }
+
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       setJustLogged(true);
-      setWeightInput('');
-      setNote('');
 
-      // Show interstitial ad (max 1/day, fire-and-forget)
-      showDailyInterstitial().catch(() => {});
+      // Show interstitial ad on new logs only (max 1/day)
+      if (!isEditMode) {
+        showPeriodicInterstitial().catch(() => {});
+      }
 
       setTimeout(() => {
         setJustLogged(false);
         onClose();
       }, 1500);
     } catch (e) {
-      Alert.alert('Error', 'Failed to log weight. Please try again.');
+      Alert.alert('Error', `Failed to ${isEditMode ? 'update' : 'log'} weight. Please try again.`);
     } finally {
       setIsLogging(false);
     }
@@ -72,7 +130,21 @@ export default function LogWeightModal({ visible, onClose }: LogWeightModalProps
     setWeightInput('');
     setNote('');
     setJustLogged(false);
+    setShowCalendar(false);
+    setShowTimePicker(false);
     onClose();
+  };
+
+  const formatDateDisplay = () => {
+    return selectedDate.toLocaleDateString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  const formatTimeDisplay = () => {
+    return `${selectedHours.toString().padStart(2, '0')}:${selectedMinutes.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -92,18 +164,50 @@ export default function LogWeightModal({ visible, onClose }: LogWeightModalProps
             {justLogged ? (
               <View style={styles.successContainer}>
                 <Text style={[styles.successIcon, { color: colors.positive }]}>{'\u2713'}</Text>
-                <Text style={[styles.successText, { color: colors.positive }]}>Logged!</Text>
-                {bayesianResult && (
+                <Text style={[styles.successText, { color: colors.positive }]}>
+                  {isEditMode ? 'Updated!' : 'Logged!'}
+                </Text>
+                {bayesianResult && !isEditMode && (
                   <Text style={[styles.successSub, { color: colors.textSecondary }]}>
                     Estimated: {formatWeight(bayesianResult.estimatedTrueWeight, weightUnit)}
                   </Text>
                 )}
               </View>
+            ) : showCalendar ? (
+              /* Calendar picker overlay */
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <CalendarPicker
+                  selectedDate={selectedDate}
+                  onConfirm={(date) => {
+                    setSelectedDate(date);
+                    setShowCalendar(false);
+                  }}
+                  onCancel={() => setShowCalendar(false)}
+                  colors={colors}
+                />
+              </ScrollView>
+            ) : showTimePicker ? (
+              /* Analog time picker overlay */
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <AnalogTimePicker
+                  initialHours={selectedHours}
+                  initialMinutes={selectedMinutes}
+                  onConfirm={(h, m) => {
+                    setSelectedHours(h);
+                    setSelectedMinutes(m);
+                    setShowTimePicker(false);
+                  }}
+                  onCancel={() => setShowTimePicker(false)}
+                  colors={colors}
+                />
+              </ScrollView>
             ) : (
               <>
                 {/* Header */}
                 <View style={styles.header}>
-                  <Text style={[styles.title, { color: colors.text }]}>Log Weight</Text>
+                  <Text style={[styles.title, { color: colors.text }]}>
+                    {isEditMode ? 'Edit Weight' : 'Log Weight'}
+                  </Text>
                   <TouchableOpacity onPress={handleClose}>
                     <Text style={[styles.closeButton, { color: colors.textSecondary }]}>{'\u2715'}</Text>
                   </TouchableOpacity>
@@ -113,19 +217,19 @@ export default function LogWeightModal({ visible, onClose }: LogWeightModalProps
                 <View style={styles.inputSection}>
                   <View style={styles.inputRow}>
                     <TextInput
+                      ref={weightInputRef}
                       style={[styles.weightInput, { color: colors.text }]}
                       keyboardType="decimal-pad"
                       placeholder={lastWeight ? lastWeight.toFixed(1) : weightUnit === 'kg' ? '70.0' : '154.0'}
                       placeholderTextColor={colors.textSecondary + '50'}
                       value={weightInput}
                       onChangeText={setWeightInput}
-                      autoFocus
                       selectTextOnFocus
                     />
                     <Text style={[styles.unitLabel, { color: colors.textSecondary }]}>{weightUnit}</Text>
                   </View>
 
-                  {lastWeight && (
+                  {lastWeight && !isEditMode && (
                     <TouchableOpacity
                       style={[styles.quickFill, { borderColor: colors.surfaceBorder }]}
                       onPress={() => setWeightInput(lastWeight.toFixed(1))}>
@@ -146,12 +250,24 @@ export default function LogWeightModal({ visible, onClose }: LogWeightModalProps
                   maxLength={200}
                 />
 
-                {/* Timestamp */}
-                <Text style={[styles.timestamp, { color: colors.textSecondary }]}>
-                  {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} — adjusted for time-of-day
-                </Text>
+                {/* Date & Time selectors */}
+                <View style={styles.dateTimeRow}>
+                  <TouchableOpacity
+                    style={[styles.dateTimeBtn, { borderColor: colors.surfaceBorder }]}
+                    onPress={() => setShowCalendar(true)}>
+                    <Text style={[styles.dateTimeIcon, { color: colors.tint }]}>{'\uD83D\uDCC5'}</Text>
+                    <Text style={[styles.dateTimeText, { color: colors.text }]}>{formatDateDisplay()}</Text>
+                  </TouchableOpacity>
 
-                {/* Log button */}
+                  <TouchableOpacity
+                    style={[styles.dateTimeBtn, { borderColor: colors.surfaceBorder }]}
+                    onPress={() => setShowTimePicker(true)}>
+                    <Text style={[styles.dateTimeIcon, { color: colors.tint }]}>{'\uD83D\uDD52'}</Text>
+                    <Text style={[styles.dateTimeText, { color: colors.text }]}>{formatTimeDisplay()}</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Log/Save button */}
                 <TouchableOpacity
                   style={[
                     styles.logButton,
@@ -161,7 +277,10 @@ export default function LogWeightModal({ visible, onClose }: LogWeightModalProps
                   onPress={handleLog}
                   disabled={isLogging || !weightInput}>
                   <Text style={styles.logButtonText}>
-                    {isLogging ? 'Logging...' : 'Log Weight'}
+                    {isLogging
+                      ? (isEditMode ? 'Saving...' : 'Logging...')
+                      : (isEditMode ? 'Save Changes' : 'Log Weight')
+                    }
                   </Text>
                 </TouchableOpacity>
               </>
@@ -188,6 +307,7 @@ const styles = StyleSheet.create({
   },
   modal: {
     width: '88%',
+    maxHeight: '85%',
     borderRadius: 20,
     padding: 24,
     borderWidth: 1,
@@ -229,7 +349,28 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginBottom: 12,
   },
-  timestamp: { fontSize: 12, textAlign: 'center', marginBottom: 16 },
+  dateTimeRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  dateTimeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderRadius: 12,
+  },
+  dateTimeIcon: {
+    fontSize: 16,
+  },
+  dateTimeText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
   logButton: {
     height: 50,
     borderRadius: 14,

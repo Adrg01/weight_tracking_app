@@ -15,6 +15,7 @@ import Colors from '@/constants/Colors';
 import { formatWeight, fromKg } from '@/lib/units';
 import SwipeableTab from '@/components/SwipeableTab';
 import { calculateTrend } from '@/lib/bayesian';
+import LogWeightModal, { EditData } from '@/components/LogWeightModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CHART_HEIGHT = 180;
@@ -26,6 +27,8 @@ export default function HistoryScreen() {
   const { resolvedTheme, measurements, weightUnit, removeWeight } = useApp();
   const colors = Colors[resolvedTheme];
   const [timeRange, setTimeRange] = useState<TimeRange>('30d');
+  const [editData, setEditData] = useState<EditData | null>(null);
+  const [editModalVisible, setEditModalVisible] = useState(false);
 
   const filteredMeasurements = (() => {
     if (timeRange === 'all') return measurements;
@@ -45,14 +48,35 @@ export default function HistoryScreen() {
 
   const trendData = calculateTrend(chartData);
 
-  const handleDelete = (id: string) => {
-    Alert.alert('Delete Measurement', 'Are you sure you want to delete this entry?', [
-      { text: 'Cancel', style: 'cancel' },
+  const handleLongPress = (item: typeof measurements[0]) => {
+    Alert.alert('Measurement Options', undefined, [
+      {
+        text: 'Edit',
+        onPress: () => {
+          setEditData({
+            id: item.id,
+            weightKg: item.weight_kg,
+            measuredAt: item.measured_at,
+            note: item.note,
+          });
+          setEditModalVisible(true);
+        },
+      },
       {
         text: 'Delete',
         style: 'destructive',
-        onPress: () => removeWeight(id),
+        onPress: () => {
+          Alert.alert('Delete Measurement', 'Are you sure you want to delete this entry?', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Delete',
+              style: 'destructive',
+              onPress: () => removeWeight(item.id),
+            },
+          ]);
+        },
       },
+      { text: 'Cancel', style: 'cancel' },
     ]);
   };
 
@@ -167,7 +191,7 @@ export default function HistoryScreen() {
     return (
       <TouchableOpacity
         style={[styles.measurementRow, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}
-        onLongPress={() => handleDelete(item.id)}
+        onLongPress={() => handleLongPress(item)}
         delayLongPress={500}>
         <View style={styles.measurementLeft}>
           <Text style={[styles.measurementWeight, { color: colors.text }]}>
@@ -227,6 +251,16 @@ export default function HistoryScreen() {
         }
         contentContainerStyle={styles.listContent}
         ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+      />
+
+      {/* Edit modal */}
+      <LogWeightModal
+        visible={editModalVisible}
+        onClose={() => {
+          setEditModalVisible(false);
+          setEditData(null);
+        }}
+        editData={editData}
       />
     </View>
     </SwipeableTab>

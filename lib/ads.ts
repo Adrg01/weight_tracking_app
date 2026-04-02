@@ -3,34 +3,44 @@
 
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import mobileAds, {
-  BannerAd,
-  BannerAdSize,
-  InterstitialAd,
-  AdEventType,
-  TestIds,
-} from 'react-native-google-mobile-ads';
 
-export { BannerAd, BannerAdSize };
+let mobileAds: any = null;
+let InterstitialAd: any = null;
+let AdEventType: any = {};
+let TestIds: any = { BANNER: '', INTERSTITIAL: '' };
 
-const INTERSTITIAL_CAP_KEY = '@scaley_last_interstitial_date';
+try {
+  const ads = require('react-native-google-mobile-ads');
+  mobileAds = ads.default;
+  InterstitialAd = ads.InterstitialAd;
+  AdEventType = ads.AdEventType;
+  TestIds = ads.TestIds;
+} catch {
+  // Native module not available (Expo Go)
+}
+
+const INTERSTITIAL_COUNT_KEY = '@scaley_log_count_since_ad';
+const INTERSTITIAL_EVERY_N_LOGS = 3;
 
 // Test Ad Unit IDs — swap these for production
-export const BANNER_AD_UNIT_ID = __DEV__
-  ? TestIds.BANNER
-  : Platform.select({
-      android: 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX', // Replace with real ID
-      ios: 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX',
-      default: TestIds.BANNER,
-    })!;
+// TODO: Replace with real Ad Unit IDs before production release
+// Using test IDs for now so ads render in both dev and preview builds
+export const BANNER_AD_UNIT_ID = Platform.select({
+  android: 'ca-app-pub-7925989043709506/3882139609',
+  ios: 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX',
+  default: '',
+})!;
 
-export const INTERSTITIAL_AD_UNIT_ID = __DEV__
-  ? TestIds.INTERSTITIAL
-  : Platform.select({
-      android: 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX', // Replace with real ID
-      ios: 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX',
-      default: TestIds.INTERSTITIAL,
-    })!;
+export const INTERSTITIAL_AD_UNIT_ID = Platform.select({
+  android: 'ca-app-pub-7925989043709506/9673522330',
+  ios: 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX',
+  default: '',
+})!;
+
+// Use test IDs until real ones are configured
+const HAS_REAL_ADS = !BANNER_AD_UNIT_ID.includes('XXXX');
+export const EFFECTIVE_BANNER_ID = HAS_REAL_ADS ? BANNER_AD_UNIT_ID : TestIds.BANNER;
+export const EFFECTIVE_INTERSTITIAL_ID = HAS_REAL_ADS ? INTERSTITIAL_AD_UNIT_ID : TestIds.INTERSTITIAL;
 
 export async function initializeAds(): Promise<void> {
   try {
@@ -40,15 +50,20 @@ export async function initializeAds(): Promise<void> {
   }
 }
 
-// Show interstitial ad — max 1 per day
-export async function showDailyInterstitial(): Promise<void> {
+// Show interstitial ad every N weight logs
+export async function showPeriodicInterstitial(): Promise<void> {
   try {
-    const today = new Date().toISOString().split('T')[0];
-    const lastShown = await AsyncStorage.getItem(INTERSTITIAL_CAP_KEY);
+    if (!InterstitialAd) return;
 
-    if (lastShown === today) return; // Already shown today
+    const raw = await AsyncStorage.getItem(INTERSTITIAL_COUNT_KEY);
+    const count = (parseInt(raw ?? '0', 10) || 0) + 1;
 
-    const interstitial = InterstitialAd.createForAdRequest(INTERSTITIAL_AD_UNIT_ID);
+    if (count < INTERSTITIAL_EVERY_N_LOGS) {
+      await AsyncStorage.setItem(INTERSTITIAL_COUNT_KEY, count.toString());
+      return; // Not time yet
+    }
+
+    const interstitial = InterstitialAd.createForAdRequest(EFFECTIVE_INTERSTITIAL_ID);
 
     return new Promise<void>((resolve) => {
       const timeout = setTimeout(() => {
@@ -61,7 +76,7 @@ export async function showDailyInterstitial(): Promise<void> {
       });
 
       interstitial.addAdEventListener(AdEventType.CLOSED, async () => {
-        await AsyncStorage.setItem(INTERSTITIAL_CAP_KEY, today);
+        await AsyncStorage.setItem(INTERSTITIAL_COUNT_KEY, '0'); // Reset counter
         resolve();
       });
 

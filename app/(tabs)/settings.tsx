@@ -10,14 +10,18 @@ import {
   TextInput,
   Modal,
   Alert,
+  Share,
 } from 'react-native';
 import { useApp } from '@/contexts/AppContext';
 import Colors from '@/constants/Colors';
 import { formatHeight, formatWeight, cmToFtIn, ftInToCm, fromKg, WeightUnit, HeightUnit } from '@/lib/units';
 import SwipeableTab from '@/components/SwipeableTab';
 import AnalogTimePicker from '@/components/AnalogTimePicker';
-import { exportDataAsCSV } from '@/lib/export';
+import { exportDataAsCSV, importDataFromCSV } from '@/lib/export';
+import { requestReviewManually } from '@/lib/reviewPrompt';
 import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
+import { Feather } from '@expo/vector-icons';
 
 export default function SettingsScreen() {
   const {
@@ -32,6 +36,7 @@ export default function SettingsScreen() {
     setHeightUnit,
     clearHistory,
     measurements,
+    importMeasurements,
   } = useApp();
   const colors = Colors[resolvedTheme];
 
@@ -472,10 +477,41 @@ export default function SettingsScreen() {
               Alert.alert('No Data', 'There are no measurements to export.');
               return;
             }
-            await exportDataAsCSV(user.id, weightUnit);
+            await exportDataAsCSV(user.id, weightUnit, user);
           }}>
           <Text style={[styles.rowLabel, { color: colors.text }]}>Export Data</Text>
-          <Text style={[styles.rowValue, { color: colors.textSecondary }]}>CSV</Text>
+          <Feather name="upload" size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.row, { borderBottomColor: colors.surfaceBorder }]}
+          onPress={async () => {
+            try {
+              const result = await importDataFromCSV();
+              if (!result) return; // User cancelled
+              if (result.count === 0) {
+                Alert.alert('No Data', 'No valid measurements found in the file.');
+                return;
+              }
+              Alert.alert(
+                'Import Data',
+                `Found ${result.count} measurement${result.count === 1 ? '' : 's'}${result.skipped > 0 ? ` (${result.skipped} skipped)` : ''}. Import them?`,
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Import',
+                    onPress: async () => {
+                      await importMeasurements(result.measurements);
+                      Alert.alert('Done', `Imported ${result.count} measurement${result.count === 1 ? '' : 's'}.`);
+                    },
+                  },
+                ]
+              );
+            } catch (e: any) {
+              Alert.alert('Import Failed', e.message || 'Could not parse the file.');
+            }
+          }}>
+          <Text style={[styles.rowLabel, { color: colors.text }]}>Import Data</Text>
+          <Feather name="download" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.row, { borderBottomColor: colors.surfaceBorder }]}
@@ -498,9 +534,49 @@ export default function SettingsScreen() {
             );
           }}>
           <Text style={[styles.rowLabel, { color: colors.negative }]}>Clear History</Text>
-          <Text style={[styles.rowValue, { color: colors.textSecondary }]}>
-            {measurements.length} measurement{measurements.length === 1 ? '' : 's'}
-          </Text>
+          <Feather name="trash-2" size={18} color={colors.negative} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Support section */}
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>Support</Text>
+      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
+        <TouchableOpacity
+          style={[styles.row, { borderBottomColor: colors.surfaceBorder }]}
+          onPress={() => {
+            Linking.openURL('mailto:scaley.app@gmail.com?subject=Scaley%20Feedback&body=');
+          }}>
+          <Text style={[styles.rowLabel, { color: colors.text }]}>Send Feedback</Text>
+          <Feather name="mail" size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.row, { borderBottomColor: colors.surfaceBorder }]}
+          onPress={() => requestReviewManually()}>
+          <Text style={[styles.rowLabel, { color: colors.text }]}>Rate This App</Text>
+          <Feather name="star" size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.row, { borderBottomColor: colors.surfaceBorder }]}
+          onPress={async () => {
+            try {
+              await Share.share({
+                message: 'Check out Scaley — a smart weight tracker that shows your real weight trend!\nhttps://play.google.com/store/apps/details?id=com.scaley.app',
+              });
+            } catch {}
+          }}>
+          <Text style={[styles.rowLabel, { color: colors.text }]}>Share This App</Text>
+          <Feather name="share-2" size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
+
+      {/* About section */}
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>About</Text>
+      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.surfaceBorder }]}>
+        <TouchableOpacity
+          style={[styles.row, { borderBottomColor: colors.surfaceBorder }]}
+          onPress={() => WebBrowser.openBrowserAsync('https://adrg01.github.io/weight_tracking_app/privacy-policy.html')}>
+          <Text style={[styles.rowLabel, { color: colors.text }]}>Privacy Policy</Text>
+          <Feather name="external-link" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
@@ -508,11 +584,6 @@ export default function SettingsScreen() {
       <View style={styles.appInfo}>
         <Text style={[styles.appName, { color: colors.tint }]}>Scaley</Text>
         <Text style={[styles.appVersion, { color: colors.textSecondary }]}>Version 1.0.0</Text>
-        <TouchableOpacity
-          style={{ marginTop: 12 }}
-          onPress={() => WebBrowser.openBrowserAsync('https://adrg01.github.io/weight_tracking_app/privacy-policy.html')}>
-          <Text style={[styles.rowValue, { color: colors.tint }]}>Privacy Policy</Text>
-        </TouchableOpacity>
       </View>
     </ScrollView>
 

@@ -15,7 +15,16 @@ import { getBestMeasurementTime, createInitialPrior, updatePosterior } from '@/l
 import WeightChart from '@/components/WeightChart';
 import LogWeightModal from '@/components/LogWeightModal';
 import SwipeableTab from '@/components/SwipeableTab';
-import { BannerAd, BannerAdSize, BANNER_AD_UNIT_ID } from '@/lib/ads';
+import { EFFECTIVE_BANNER_ID } from '@/lib/ads';
+let BannerAd: any = null;
+let BannerAdSize: any = {};
+try {
+  const ads = require('react-native-google-mobile-ads');
+  BannerAd = ads.BannerAd;
+  BannerAdSize = ads.BannerAdSize;
+} catch {
+  // Native module not available (Expo Go)
+}
 
 export default function DashboardScreen() {
   const {
@@ -30,6 +39,7 @@ export default function DashboardScreen() {
   } = useApp();
   const colors = Colors[resolvedTheme];
   const [logModalVisible, setLogModalVisible] = useState(false);
+  const [bannerHeight, setBannerHeight] = useState(0);
 
   const latestWeight = measurements.length > 0 ? measurements[0].weight_kg : null;
   const estimatedWeight = bayesianResult?.estimatedTrueWeight ?? null;
@@ -66,6 +76,42 @@ export default function DashboardScreen() {
     return points;
   }, [measurements]);
 
+  // Compute trend: compare current estimate to average of all estimates
+  const trendInfo = useMemo(() => {
+    if (!estimatedWeight || chartData.length < 3 || !user?.goal_weight_kg) return null;
+
+    const estimates = chartData
+      .map(p => p.estimatedWeight)
+      .filter((w): w is number => w != null);
+    if (estimates.length < 3) return null;
+
+    // Average of all estimates except the latest
+    const prevEstimates = estimates.slice(0, -1);
+    const avg = prevEstimates.reduce((a, b) => a + b, 0) / prevEstimates.length;
+    const diff = estimatedWeight - avg;
+    if (Math.abs(diff) < 0.01) return null; // No meaningful change
+
+    const goal = user.goal_weight_kg;
+    const needsToLose = estimatedWeight > goal;
+    const needsToGain = estimatedWeight < goal;
+
+    // Green if moving toward goal, red if moving away
+    let isPositive: boolean;
+    if (needsToLose) {
+      isPositive = diff < 0; // losing weight = good
+    } else if (needsToGain) {
+      isPositive = diff > 0; // gaining weight = good
+    } else {
+      isPositive = Math.abs(diff) < 0.1; // at goal, small changes are fine
+    }
+
+    return {
+      diff,
+      isPositive,
+      arrow: diff > 0 ? '\u25B2' : '\u25BC', // ▲ or ▼
+    };
+  }, [estimatedWeight, chartData, user?.goal_weight_kg]);
+
   return (
     <SwipeableTab currentIndex={0}>
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -79,9 +125,21 @@ export default function DashboardScreen() {
               <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>
                 Estimated True Weight
               </Text>
-              <Text style={[styles.mainWeight, { color: colors.text }]}>
-                {formatWeight(estimatedWeight, weightUnit)}
-              </Text>
+              <View style={styles.weightRow}>
+                <Text style={[styles.mainWeight, { color: colors.text }]}>
+                  {formatWeight(estimatedWeight, weightUnit)}
+                </Text>
+                {trendInfo && (
+                  <View style={[styles.trendBadge, { backgroundColor: (trendInfo.isPositive ? colors.positive : colors.negative) + '18' }]}>
+                    <Text style={[styles.trendArrow, { color: trendInfo.isPositive ? colors.positive : colors.negative }]}>
+                      {trendInfo.arrow}
+                    </Text>
+                    <Text style={[styles.trendValue, { color: trendInfo.isPositive ? colors.positive : colors.negative }]}>
+                      {fromKg(Math.abs(trendInfo.diff), weightUnit).toFixed(1)}
+                    </Text>
+                  </View>
+                )}
+              </View>
               {confidence != null && (
                 <Text style={[styles.confidence, { color: colors.textSecondary }]}>
                   {'\u00B1'} {fromKg(confidence, weightUnit).toFixed(2)} {weightUnit}
@@ -216,22 +274,27 @@ export default function DashboardScreen() {
           );
         })()}
 
-        {/* Bottom spacer for banner + FAB */}
-        <View style={{ height: 140 }} />
+        {/* Bottom spacer for FAB */}
+        <View style={{ height: 80 }} />
       </ScrollView>
 
-      {/* Banner ad */}
-      <View style={styles.bannerContainer}>
-        <BannerAd
-          unitId={BANNER_AD_UNIT_ID}
-          size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-          requestOptions={{ requestNonPersonalizedAdsOnly: true }}
-        />
+      {/* Banner ad — sits at bottom in normal flow, content resizes above */}
+      <View
+        style={styles.bannerContainer}
+        onLayout={(e) => setBannerHeight(e.nativeEvent.layout.height)}>
+        {BannerAd ? (
+          <BannerAd
+            unitId={EFFECTIVE_BANNER_ID}
+            size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+            requestOptions={{ requestNonPersonalizedAdsOnly: true }}
+            onAdFailedToLoad={(error: any) => console.warn('Ad failed:', error)}
+          />
+        ) : null}
       </View>
 
       {/* Floating Action Button */}
       <TouchableOpacity
-        style={[styles.fab, { backgroundColor: colors.tint }]}
+        style={[styles.fab, { backgroundColor: colors.tint, bottom: bannerHeight + 16 }]}
         onPress={() => setLogModalVisible(true)}
         activeOpacity={0.8}>
         <Text style={styles.fabIcon}>+</Text>
@@ -257,6 +320,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   mainCard: { alignItems: 'center', paddingVertical: 28 },
+  weightRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  trendBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  trendArrow: { fontSize: 12, fontWeight: '700' },
+  trendValue: { fontSize: 14, fontWeight: '700' },
   cardLabel: { fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
   mainWeight: { fontSize: 48, fontWeight: '700' },
   confidence: { fontSize: 14, marginTop: 4 },
@@ -293,16 +367,12 @@ const styles = StyleSheet.create({
   progressBar: { height: 8, borderRadius: 4, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 4 },
   bannerContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     alignItems: 'center',
     backgroundColor: 'transparent',
   },
   fab: {
     position: 'absolute',
-    bottom: 80,
+    bottom: 16,
     right: 24,
     width: 60,
     height: 60,
